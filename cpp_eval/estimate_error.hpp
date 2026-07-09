@@ -31,7 +31,7 @@ public:
     }
     double sampling_error_rate(std::mt19937_64 &gen) {
         int DB = sampling_gap_in_DB(gen);
-        double coefficient = 1.0;
+        double coefficient = 0.9;
         double relative_error_rate = pow(10., -DB*coefficient/10.0);
         double error_rate = relative_error_rate / (1.0 + relative_error_rate);
         //std::cout << "DB: " << DB << ", relative_error_rate: " << relative_error_rate << ", error_rate: " << error_rate << std::endl;
