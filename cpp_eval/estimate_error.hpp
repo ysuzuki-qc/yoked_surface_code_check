@@ -189,6 +189,5 @@ double evaluate_logical_error_rate(int sample_count, int patch_count, int seed, 
         // std::cout << sample_index+1 << " " << temp_logical_error_rate << " " << current_sum_logical_error_rate << " +- " << std_error << std::endl;
     }
     double logical_error_rate = sum_logical_error_rate / sample_count;
-    logical_error_rate *= 2; // account pL = px+pz
     return logical_error_rate;
 }

@@ -159,24 +159,24 @@ def main() -> None:
 
     rounds = num_round_coef * distance
     logical_error_rate_per_patch, counter = run(distance, error_rate, shots, seed, bin_width, rounds)
-    filename = f"./data/gap_stat_{num_round_coef}_{distance}.txt"
 
+    filename = f"./data/gap_stat_{num_round_coef}_{distance}.txt"
     if os.path.exists(filename):
         DBs, counts = np.loadtxt(filename, unpack=True, dtype=int)
         for DB, count in zip(DBs, counts):
             counter[DB] = counter.get(DB, 0) + int(count)
-
     with open(filename, "w") as f:
         for db, count in sorted(counter.items()):
             f.write(f"{int(db)} {int(count)}\n")
 
-    logical_error_rate = 1 - pow(1-logical_error_rate_per_patch, num_patch)
-    logical_error_rate_per_round = 1-(1-logical_error_rate)**(1./(rounds))
-    logical_error_rate_per_round *= 2 # account pL = px+pz
-    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round = {logical_error_rate_per_round:.6e}")
+    logical_error_rate_per_patch_round = 1-(1-logical_error_rate_per_patch)**(1./(rounds))
+    logical_error_rate_per_patch_round *= 2 # account pL = px+pz
+    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical errors per patch round = {logical_error_rate_per_patch_round:.6e}")
 
     logical_error_rate_per_patch_debug = eval_logical_error_rate(distance, error_rate, shots, seed, rounds)
-    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round (debug) = {logical_error_rate_per_patch_debug*num_patch/rounds*2:.6e}")
+    logical_error_rate_per_patch_round_debug = 1-(1-logical_error_rate_per_patch_debug)**(1./(rounds))
+    logical_error_rate_per_patch_round_debug *= 2 # account pL = px+pz
+    # print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round (debug) = {logical_error_rate_per_patch_round_debug:.6e}")
 
 
 
