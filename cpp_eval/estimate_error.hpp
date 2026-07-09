@@ -31,7 +31,7 @@ public:
     }
     double sampling_error_rate(std::mt19937_64 &gen) {
         int DB = sampling_gap_in_DB(gen);
-        double coefficient = 0.9;
+        double coefficient = 0.9; // confidence calibration
         double relative_error_rate = pow(10., -DB*coefficient/10.0);
         double error_rate = relative_error_rate / (1.0 + relative_error_rate);
         //std::cout << "DB: " << DB << ", relative_error_rate: " << relative_error_rate << ", error_rate: " << error_rate << std::endl;
@@ -73,7 +73,7 @@ double optimal_decoder(std::vector<double> &error_rate_list) {
     // create a log probability list
     std::vector<double> log_probability_list = create_log_probability_list(error_rate_list);
 
-    double failure_probability = 0.0;
+    double logical_error_rate = 0.0;
     // check failure probability for each error pattern
     for (int error_pattern = 0; error_pattern < (1<<qubit_count); ++error_pattern) {
 
@@ -102,10 +102,10 @@ double optimal_decoder(std::vector<double> &error_rate_list) {
         double success = (most_probable_class == error_pattern) || (most_probable_class == (((1<<qubit_count)-1) ^ error_pattern));
         if (!success) {
             double error_probability = exp(log_probability_list[error_pattern]);
-            failure_probability += error_probability;
+            logical_error_rate += error_probability;
         }
     }
-    return failure_probability;
+    return logical_error_rate;
 }
 
 double minimum_weight_decoder(std::vector<double> &error_rate_list) {
@@ -115,7 +115,7 @@ double minimum_weight_decoder(std::vector<double> &error_rate_list) {
     // create a log probability list
     std::vector<double> log_probability_list = create_log_probability_list(error_rate_list);
 
-    double failure_probability = 0.0;
+    double logical_error_rate = 0.0;
     // check failure probability for each error pattern
     for (int error_pattern = 0; error_pattern < (1<<qubit_count); ++error_pattern) {
 
@@ -143,14 +143,14 @@ double minimum_weight_decoder(std::vector<double> &error_rate_list) {
         double success = (most_probable_error == error_pattern) || (most_probable_error == (((1<<qubit_count)-1) ^ error_pattern));
         if (!success) {
             double error_probability = exp(log_probability_list[error_pattern]);
-            failure_probability += error_probability;
+            logical_error_rate += error_probability;
         }
     }
-    return failure_probability;
+    return logical_error_rate;
 }
 
 
-double evaluate_failure_probability(int sample_count, int patch_count, int seed, BinnedSignedComplementaryGap &bscg, std::string policy){
+double evaluate_logical_error_rate(int sample_count, int patch_count, int seed, BinnedSignedComplementaryGap &bscg, std::string policy){
     if(patch_count % 2 == 1) {
         throw std::invalid_argument("patch_count must be even");
     }
@@ -159,7 +159,7 @@ double evaluate_failure_probability(int sample_count, int patch_count, int seed,
     }
 
     std::mt19937_64 gen(seed);
-    double sum_failure_probability = 0.0;
+    double sum_logical_error_rate = 0.0;
     for (int sample_index = 0; sample_index < sample_count; ++sample_index) {
         // sampling error rate list
         std::vector<double> error_rate_list(patch_count);
@@ -175,19 +175,20 @@ double evaluate_failure_probability(int sample_count, int patch_count, int seed,
         */
 
         // evaluate failure probability based on the specified policy
-        double temp_failure_probability = 0.0;
+        double temp_logical_error_rate = 0.0;
         if (policy == "optimal") {
-            temp_failure_probability = optimal_decoder(error_rate_list);
+            temp_logical_error_rate = optimal_decoder(error_rate_list);
         } else if (policy == "minimum_weight") {
-            temp_failure_probability = minimum_weight_decoder(error_rate_list);
+            temp_logical_error_rate = minimum_weight_decoder(error_rate_list);
         } else {
             throw std::invalid_argument("Invalid policy: " + policy);
         }
-        sum_failure_probability += temp_failure_probability;
-        double current_sum_failure_probability = sum_failure_probability / (sample_index + 1);
-        double std_error = sqrt(current_sum_failure_probability * (1 - current_sum_failure_probability) / (sample_index + 1));
-        // std::cout << sample_index+1 << " " << temp_failure_probability << " " << current_sum_failure_probability << " +- " << std_error << std::endl;
+        sum_logical_error_rate += temp_logical_error_rate;
+        double current_sum_logical_error_rate = sum_logical_error_rate / (sample_index + 1);
+        double std_error = sqrt(current_sum_logical_error_rate * (1 - current_sum_logical_error_rate) / (sample_index + 1));
+        // std::cout << sample_index+1 << " " << temp_logical_error_rate << " " << current_sum_logical_error_rate << " +- " << std_error << std::endl;
     }
-    double failure_probability = sum_failure_probability / sample_count;
-    return failure_probability;
+    double logical_error_rate = sum_logical_error_rate / sample_count;
+    logical_error_rate *= 2; // account pL = px+pz
+    return logical_error_rate;
 }

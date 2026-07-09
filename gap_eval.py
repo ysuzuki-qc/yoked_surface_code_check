@@ -27,7 +27,7 @@ def build_uniform_rotated_surface_code(distance: int, error_rate: float, round: 
     return circuit
 
 
-def dem_with_observable_as_detector(
+def use_observable_as_detector(
     dem: stim.DetectorErrorModel,
     *,
     observable_id: int = 0,
@@ -59,12 +59,12 @@ def dem_with_observable_as_detector(
 
 def constrained_matching_weights(
     matching: pymatching.Matching,
-    syndrome: np.ndarray,
+    det: np.ndarray,
 ) -> tuple[float, float]:
     weights = []
     for forced_observable in [0, 1]:
         constrained_syndrome = np.concatenate(
-            [syndrome.astype(np.uint8, copy=False), np.array([forced_observable], dtype=np.uint8)]
+            [det.astype(np.uint8, copy=False), np.array([forced_observable], dtype=np.uint8)]
         )
         _, weight = matching.decode(
             constrained_syndrome,
@@ -96,7 +96,7 @@ def run(distance: int, error_rate: float, shots: int, seed: int, bin_width: floa
     # create circuit, matching, and sampler
     circuit = build_uniform_rotated_surface_code(distance, error_rate, rounds)
     dem = circuit.detector_error_model(decompose_errors=True)
-    constrained_dem = dem_with_observable_as_detector(dem)
+    constrained_dem = use_observable_as_detector(dem)
     matching = pymatching.Matching.from_detector_error_model(
         constrained_dem,
         enable_correlations=True,
@@ -108,8 +108,8 @@ def run(distance: int, error_rate: float, shots: int, seed: int, bin_width: floa
     failures = 0
     signed_gaps: list[float] = []
 
-    for syndrome, observable in zip(dets, observables):
-        weight0, weight1 = constrained_matching_weights(matching, syndrome)
+    for det, observable in zip(dets, observables):
+        weight0, weight1 = constrained_matching_weights(matching, det)
         prediction = int(weight1 < weight0)
         gap_db = weight_gap_to_db(abs(weight1 - weight0))
         correct = prediction == int(observable[0])
@@ -120,7 +120,26 @@ def run(distance: int, error_rate: float, shots: int, seed: int, bin_width: floa
         counter[binned_gap] = counter.get(binned_gap, 0) + 1
     return counter
 
+def eval_logical_error_rate(distance: int, error_rate: float, shots: int, seed: int, rounds: int) -> float:
+    circuit = build_uniform_rotated_surface_code(distance, error_rate, rounds)
+    dem = circuit.detector_error_model(decompose_errors=True)
+    matching = pymatching.Matching.from_detector_error_model(
+        dem,
+        enable_correlations=True,
+    )
+    sampler = circuit.compile_detector_sampler(seed=seed)
 
+    dets, observables = sampler.sample(shots, separate_observables=True)
+    preds = matching.decode_batch(dets, enable_correlations=True)
+    num_errors = 0
+    for shot in range(shots):
+        actual_for_shot = observables[shot]
+        predicted_for_shot = preds[shot]
+        if not np.array_equal(actual_for_shot, predicted_for_shot):
+            num_errors += 1
+    logical_error_rate = num_errors / shots
+    return logical_error_rate
+    
 def main() -> None:
     if len(sys.argv) < 5:
         print("Usage: python gap_eval.py run <num_patch> <num_round_coef> <distance> <shots>")
@@ -154,7 +173,11 @@ def main() -> None:
     logical_error_rate_per_patch = sum(count for db, count in counter.items() if db < 0) / sum(list(counter.values()))
     logical_error_rate = 1 - pow(1-logical_error_rate_per_patch, num_patch)
     logical_error_rate_per_round = 1-(1-logical_error_rate)**(1./(rounds))
+    logical_error_rate_per_round *= 2 # account pL = px+pz
     print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round = {logical_error_rate_per_round:.6e}")
+
+    logical_error_rate_per_patch_debug = eval_logical_error_rate(distance, error_rate, shots, seed, rounds)
+    print(logical_error_rate_per_patch, logical_error_rate_per_patch_debug)
 
 
 
@@ -172,13 +195,13 @@ def plot() -> None:
             plt.plot(DBs, counts/num_shot, marker="o", label=f"r={num_round_coef}d d={distance}")
         if data_exist is False:
             continue
-        plt.xlabel("Complementary gap (dB)")
-        plt.ylabel("Counts")
+        plt.xlabel("Complementary gap [dB]")
+        plt.ylabel("Frequency")
         plt.xticks(np.arange(-100, 201, 10), rotation=90)
         plt.xlim(-100,200)
         plt.ylim(1e-9,1.1e0)
         plt.yscale("log")
-        plt.title(f"Complementary gap distribution for d={distance}")
+        plt.title(f"Complementary gap distribution for r={num_round_coef}d")
         plt.grid()
         plt.legend()
         plt.savefig(f"./figure/gap_stat_r={num_round_coef}d.png")
