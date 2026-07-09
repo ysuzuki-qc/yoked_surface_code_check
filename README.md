@@ -4,5 +4,5 @@ Trials to regenerate graphs in Supplementary Figure 1 in [Yoked surface codes](h
 
 ## TODO
 - Resolve discrepancy in 0D yoked surface codes
-- Check SI1000
+- Create circuit generator with SI1000
 - Check perfect calibration works

@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="Stim sampler seed.")
     return parser.parse_args()
 
-def run(distance: int, error_rate: float, shots: int, seed: int, bin_width: float, rounds: int) -> dict[int, int]:
+def run(distance: int, error_rate: float, shots: int, seed: int, bin_width: float, rounds: int) -> tuple[float, dict[int, int]]:
     # create circuit, matching, and sampler
     circuit = build_uniform_rotated_surface_code(distance, error_rate, rounds)
     dem = circuit.detector_error_model(decompose_errors=True)
@@ -104,21 +104,21 @@ def run(distance: int, error_rate: float, shots: int, seed: int, bin_width: floa
     sampler = circuit.compile_detector_sampler(seed=seed)
 
     dets, observables = sampler.sample(shots, separate_observables=True)
-    counter: dict[int, int] = {}
-    failures = 0
-    signed_gaps: list[float] = []
 
+    counter: dict[int, int] = {}
+    num_errors = 0
     for det, observable in zip(dets, observables):
         weight0, weight1 = constrained_matching_weights(matching, det)
         prediction = int(weight1 < weight0)
         gap_db = weight_gap_to_db(abs(weight1 - weight0))
         correct = prediction == int(observable[0])
         signed_gap = gap_db if correct else -gap_db
-        failures += int(not correct)
-        signed_gaps.append(signed_gap)
+        if not correct:
+            num_errors += 1
         binned_gap = int(bin_value(signed_gap, bin_width))
         counter[binned_gap] = counter.get(binned_gap, 0) + 1
-    return counter
+    logical_error_rate = num_errors / shots
+    return logical_error_rate, counter
 
 def eval_logical_error_rate(distance: int, error_rate: float, shots: int, seed: int, rounds: int) -> float:
     circuit = build_uniform_rotated_surface_code(distance, error_rate, rounds)
@@ -158,7 +158,7 @@ def main() -> None:
         raise ValueError("shots must be positive")
 
     rounds = num_round_coef * distance
-    counter = run(distance, error_rate, shots, seed, bin_width, rounds)
+    logical_error_rate_per_patch, counter = run(distance, error_rate, shots, seed, bin_width, rounds)
     filename = f"./data/gap_stat_{num_round_coef}_{distance}.txt"
 
     if os.path.exists(filename):
@@ -170,14 +170,13 @@ def main() -> None:
         for db, count in sorted(counter.items()):
             f.write(f"{int(db)} {int(count)}\n")
 
-    logical_error_rate_per_patch = sum(count for db, count in counter.items() if db < 0) / sum(list(counter.values()))
     logical_error_rate = 1 - pow(1-logical_error_rate_per_patch, num_patch)
     logical_error_rate_per_round = 1-(1-logical_error_rate)**(1./(rounds))
     logical_error_rate_per_round *= 2 # account pL = px+pz
     print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round = {logical_error_rate_per_round:.6e}")
 
     logical_error_rate_per_patch_debug = eval_logical_error_rate(distance, error_rate, shots, seed, rounds)
-    print(logical_error_rate_per_patch, logical_error_rate_per_patch_debug)
+    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round (debug) = {logical_error_rate_per_patch_debug*num_patch/rounds*2:.6e}")
 
 
 
