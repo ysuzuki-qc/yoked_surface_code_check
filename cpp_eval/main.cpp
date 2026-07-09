@@ -36,11 +36,9 @@ int main(int argc, char* argv[]) {
     }
 
     BinnedSignedComplementaryGap complementary_gap_distribution(DB_freq_list);
-    double logical_error_rate = evaluate_logical_error_rate(num_sample, num_patch, seed, complementary_gap_distribution, policy);
+    double logical_error_rate, std_error;
     int num_rounds = num_round_coef * distance;
-    double logical_error_rate_per_round = 1-pow(1-logical_error_rate, 1./(num_rounds));
-    double logical_error_rate_per_patch_round = 1-pow(1-logical_error_rate, 1./(num_patch));
-    logical_error_rate_per_patch_round *= 2; // account pL = px+pz
-    std::cout << "1D Yoke: n=" << num_patch << " r=" << num_round_coef << " d=" << distance << ": logical error rate per patch round = " << logical_error_rate_per_patch_round << std::endl;
+    std::tie(logical_error_rate, std_error) = evaluate_logical_error_rate(num_sample, num_patch, seed, complementary_gap_distribution, policy, num_rounds);
+    std::cout << "1D Yoke: n=" << num_patch << " r=" << num_round_coef << " d=" << distance << ": logical error rate per patch round = " << logical_error_rate << " +- " << std_error << std::endl;
     return 0;
 }

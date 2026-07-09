@@ -150,7 +150,7 @@ double minimum_weight_decoder(std::vector<double> &error_rate_list) {
 }
 
 
-double evaluate_logical_error_rate(int sample_count, int patch_count, int seed, BinnedSignedComplementaryGap &bscg, std::string policy){
+std::pair<double, double> evaluate_logical_error_rate(int sample_count, int patch_count, int seed, BinnedSignedComplementaryGap &bscg, std::string policy, int num_rounds){
     if(patch_count % 2 == 1) {
         throw std::invalid_argument("patch_count must be even");
     }
@@ -160,6 +160,7 @@ double evaluate_logical_error_rate(int sample_count, int patch_count, int seed, 
 
     std::mt19937_64 gen(seed);
     double sum_logical_error_rate = 0.0;
+    std::vector<double> temp_logical_error_rate_list;
     for (int sample_index = 0; sample_index < sample_count; ++sample_index) {
         // sampling error rate list
         std::vector<double> error_rate_list(patch_count);
@@ -183,11 +184,25 @@ double evaluate_logical_error_rate(int sample_count, int patch_count, int seed, 
         } else {
             throw std::invalid_argument("Invalid policy: " + policy);
         }
-        sum_logical_error_rate += temp_logical_error_rate;
-        double current_sum_logical_error_rate = sum_logical_error_rate / (sample_index + 1);
-        double std_error = sqrt(current_sum_logical_error_rate * (1 - current_sum_logical_error_rate) / (sample_index + 1));
+        double temp_logical_error_rate_per_round = 1-pow(1-temp_logical_error_rate, 1./(num_rounds));
+        double temp_logical_error_rate_per_patch_round = 1-pow(1-temp_logical_error_rate_per_round, 1./(patch_count));
+        temp_logical_error_rate_per_patch_round *= 2; // account pL = px+pz
+
+        temp_logical_error_rate_list.push_back(temp_logical_error_rate_per_patch_round);
+        sum_logical_error_rate += temp_logical_error_rate_per_patch_round;
+        // double current_sum_logical_error_rate = sum_logical_error_rate / (sample_index + 1);
         // std::cout << sample_index+1 << " " << temp_logical_error_rate << " " << current_sum_logical_error_rate << " +- " << std_error << std::endl;
     }
     double logical_error_rate = sum_logical_error_rate / sample_count;
-    return logical_error_rate;
+    double std_error = 0.0;
+    if (sample_count > 1) {
+        double mean = logical_error_rate;
+        double sum_squared_diff = 0.0;
+        for (double x : temp_logical_error_rate_list) {
+            double diff = x - mean;
+            sum_squared_diff += diff * diff;
+        }
+        std_error = std::sqrt(sum_squared_diff / (sample_count - 1)) / std::sqrt(sample_count);
+    }
+    return std::make_pair(logical_error_rate, std_error);
 }

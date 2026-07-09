@@ -171,12 +171,14 @@ def main() -> None:
 
     logical_error_rate_per_patch_round = 1-(1-logical_error_rate_per_patch)**(1./(rounds))
     logical_error_rate_per_patch_round *= 2 # account pL = px+pz
-    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical errors per patch round = {logical_error_rate_per_patch_round:.6e}")
+    std_error = np.sqrt(logical_error_rate_per_patch * (1-logical_error_rate_per_patch) / shots) / np.sqrt(shots)
+    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical errors per patch round = {logical_error_rate_per_patch_round:.6e} +- {std_error:.6e}")
 
     logical_error_rate_per_patch_debug = eval_logical_error_rate(distance, error_rate, shots, seed, rounds)
     logical_error_rate_per_patch_round_debug = 1-(1-logical_error_rate_per_patch_debug)**(1./(rounds))
     logical_error_rate_per_patch_round_debug *= 2 # account pL = px+pz
-    # print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical error rate per round (debug) = {logical_error_rate_per_patch_round_debug:.6e}")
+    std_error_debug = np.sqrt(logical_error_rate_per_patch_debug * (1-logical_error_rate_per_patch_debug) / shots) / np.sqrt(shots)
+    print(f"0D Yoke: n={num_patch} r={num_round_coef}d d={distance}: logical errors per patch round = {logical_error_rate_per_patch_round_debug:.6e} +- {std_error_debug:.6e} (directly input correlated decoding)")
 
 
 
